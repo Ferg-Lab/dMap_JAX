@@ -16,7 +16,7 @@ def check_is_symmetric(matrix, tol=1e-8):
 def identity(x):
     return x
 
-def diffMaps(eps, P, jit_compile=True):
+def diffMaps(eps, P, jit_compile=True, check_pos_definite=True):
     
     if jit_compile:
         _jit = jit
@@ -39,8 +39,9 @@ def diffMaps(eps, P, jit_compile=True):
         
     lamb, psi = jeigh(Ms)
     
-    tol = 1e-8
-    assert lamb.min() > tol, "Eigen values less than " + str(tol) + " found."
+    if check_pos_definite:
+        tol = 1e-8
+        assert lamb.min() > tol, "Eigen values less than " + str(tol) + " found. Min eigval is " + str(lamb.min())
     
     psi = _jit(jnp.matmul)(diag_inv_sqrtD, psi) # converting evecs of Ms to evecs of M; M and Ms share evals
     
