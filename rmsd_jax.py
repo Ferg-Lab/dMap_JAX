@@ -2,6 +2,7 @@
 #pip install --upgrade "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
 from jax import numpy as jnp, jit, vmap
+import pickle
 
 
 def jnp_pair_rmsd(ref, target):
@@ -50,8 +51,13 @@ def get_pairwise_rmsd_traj(traj, ref_index):
     
 
 def run_rmsd(traj_jax_array, batch_ref_frame_size=100, output_file_prefix="pair_rmsd_data/pair_rmsd_break_legs_no_break_"):
+    
+    '''Run RMSD between a trajectory in array format containing n frames with several (defined by batch_ref_frame_size)
+    reference frames and save it to a file using pickle
+    '''
+    
     count = 0
-    for i in range(100, traj_jax_array.shape[0]+1, 100):
+    for i in range(batch_ref_frame_size, traj_jax_array.shape[0]+1, batch_ref_frame_size):
     
         ref_indices = jnp.arange(count, i)
 
