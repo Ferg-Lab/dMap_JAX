@@ -2,6 +2,7 @@
 #pip install --upgrade "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
 from jax import numpy as jnp, jit, vmap
+from jax.numpy.linalg import eigh as jeigh
 
 def check_is_symmetric(matrix, tol=1e-8):
     """
