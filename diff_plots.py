@@ -83,7 +83,7 @@ def plotmaps(psi, eps, plot_stride=1, select_axis_2d=[1, 2], skip_lead=True, col
         plt.close()
     return
 
-def plot2Dmaps(psi, eps, plot_stride=1, select_max_vecs=4, skip_lead=True, colorMap='blue', cmap='Accent', ticks=None, colorbar=True,  colorlabel='Traj', figSuffix=''):
+def plot2Dmaps(psi, eps, plot_stride=1, select_max_vecs=4, skip_lead=True, colorMap='blue', cmap='Accent', ticks=None, colorbar=True,  colorlabel='Traj', figSuffix='', cticklabels=None, singlecolorbar=False):
     
     if skip_lead:
         lead = 1
@@ -100,8 +100,8 @@ def plot2Dmaps(psi, eps, plot_stride=1, select_max_vecs=4, skip_lead=True, color
                     bottom=0.1,
                     right=0.9,
                     top=0.9,
-                    wspace=0.75,
-                    hspace=0.4)
+                    wspace=0.25,
+                    hspace=0.25)
     
     count = 1
     for i in range(lead, select_max_vecs + 1):
@@ -111,14 +111,37 @@ def plot2Dmaps(psi, eps, plot_stride=1, select_max_vecs=4, skip_lead=True, color
         
             im = ax.scatter(psi[::plot_stride,i], psi[::plot_stride,j], c=colorMap, cmap=cmap)
         
+            # Set scientific notation for the x-axis
+            plt.gca().xaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+            plt.gca().ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
+            
+            # Set scientific notation for the y-axis
+            plt.gca().yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+            plt.gca().ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+            
             if colorbar:
                 if ticks:
-                    cbar = plt.colorbar(im, ax=ax, ticks=ticks)
+                    if singlecolorbar:
+                        if i == 2 and j == 4:
+                            cbar_ax = fig.add_axes([0.25, 0.29, 0.5, 0.1]) 
+                            cbar_ax.set_axis_off()
+                            
+                            cbar = plt.colorbar(im, ax=cbar_ax, ticks=ticks, location='bottom')
+                            cbar.set_ticklabels(cticklabels)
+                            cbar.set_label(colorlabel, size=25)
+                            #plt.gca().xaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+                            #plt.gca().ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
+                    else:
+                        cbar = plt.colorbar(im, ax=ax, ticks=ticks)
+                        cbar.set_ticklabels(cticklabels)
+                        cbar.set_label(colorlabel, size=18)
                 else:
-                    cbar = plt.colorbar(im, ax=ax)
+                     cbar = plt.colorbar(im, ax=ax, ticks=ticks)
+                     #cbar.set_ticklabels(cticklabels)
+                     cbar.set_label(colorlabel, size=18)
                     
                 #im.set_clim(model_loss_eigen['feat_evecs_SRV_unbiased'][:,ii+1].min(), model_loss_eigen['feat_evecs_SRV_unbiased'][:,ii+1].max())
-                cbar.set_label(colorlabel, size=18)
+                    
             
         
             ax.set_xlabel('$\psi$$_{'+str(i+1)+'}$')
@@ -126,7 +149,7 @@ def plot2Dmaps(psi, eps, plot_stride=1, select_max_vecs=4, skip_lead=True, color
             plt.xticks(fontsize=15)
             plt.yticks(fontsize=15)
 
-
+        
             count += 1
     print(count)
     if showPlots:
