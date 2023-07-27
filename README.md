@@ -13,3 +13,15 @@ Example usage can be found in the [notebooks](examples).
 
 
 -----
+
+Features
+
+-- Batchwise RMSD matrix calculations on GPUs.
+-- Standard and adaptive diffusion Maps on GPUs.
+-- Helper functions to plot eigenvalue spectrum and 2D dMaps.
+
+-----
+
+Acknowledgements
+
+- Max Topel, Andrew L. Ferguson
