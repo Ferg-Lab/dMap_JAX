@@ -12,13 +12,15 @@ Comparison of the performance of RMSD matrix calculations obtained with dMap_JAX
 Example usage can be found in the [notebooks](examples).
 
 
+
 -----
+
 
 Features
 
--- Batchwise RMSD matrix calculations on GPUs.
--- Standard and adaptive diffusion Maps on GPUs.
--- Helper functions to plot eigenvalue spectrum and 2D dMaps.
+- Batchwise RMSD matrix calculations on GPUs.
+- Standard and adaptive diffusion Maps on GPUs.
+- Helper functions to plot eigenvalue spectrum and 2D dMaps.
 
 -----
 
