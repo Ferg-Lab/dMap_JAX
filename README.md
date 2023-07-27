@@ -19,6 +19,15 @@ Example usage can be found in the [notebooks](examples).
 
 -----
 
+Installation
+
+`conda env create -f environment.yml`
+
+`conda activate djax`
+
+
+-----
+
 
 Features
 
