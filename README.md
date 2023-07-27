@@ -25,6 +25,11 @@ Installation
 
 `conda activate djax`
 
+`jax version (tested): 0.4.2`
+
+`python -m pip install "jax==0.4.2"`
+`pip install --upgrade "jaxlib==0.4.2+cuda11.cudnn86" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html`
+
 
 -----
 
