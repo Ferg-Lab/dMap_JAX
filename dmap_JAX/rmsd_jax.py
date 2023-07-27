@@ -94,7 +94,7 @@ def run_rmsd(traj_jax_array, nref_frames, batch_ref_frame_size=100, output_file_
                     prmsd = jit(vmap(get_pairwise_rmsd_between_traj, in_axes=(None, None, 0)), device = set_device)(cut_traj, traj2_jax_array, ref_indices)
                 pickle.dump({'rmsd': prmsd}, f)
         else:
-            print("Cannot Overwrite " + output_file_prefix+str(i)+".pkl. Try another file name."
+            print("Cannot Overwrite " + output_file_prefix+str(i)+".pkl. Try another file name.")
     
         count = i
         
