@@ -5,7 +5,7 @@ from jax import numpy as jnp, jit, vmap
 import numpy as np
 import pickle
 import jax
-
+import os
 
 def jnp_pair_rmsd(ref, target):
     
@@ -64,32 +64,37 @@ def get_pairwise_rmsd_between_traj(traj1, traj2, ref_index):
     return prmsd
     
 
-def run_rmsd(traj_jax_array, nref_frames, batch_ref_frame_size=100, output_file_prefix="", device=None, traj2_jax_array=None):
+def run_rmsd(traj_jax_array, nref_frames, batch_ref_frame_size=100, output_file_prefix="", device=None, traj2_jax_array=None, overwrite=False):
     
     '''Run RMSD between a trajectory in array format containing n frames with several (defined by batch_ref_frame_size)
     reference frames and save it to a file using pickle
     '''
-    
+    last_frame = (nref_frames // batch_ref_frame_size) * batch_ref_frame_size
+    cut_traj = traj_jax_array[:last_frame]
     if device:
         set_device =  device
     else:
         set_device =  jax.devices()[0]
     
     count = 0
+    
     for i in range(batch_ref_frame_size, nref_frames, batch_ref_frame_size):
     
         ref_indices = jnp.arange(count, i)
-
+        
+        if overwrite or not os.path.isfile(output_file_prefix+str(i)+".pkl"):
         # TO do: calculate only upper diagonal i, j pair
-        with open(output_file_prefix+str(i)+".pkl", "wb") as f:
-            
-            if traj2_jax_array is None:
-                print(f"running pairwise rmsd between same traj. Batch: {count}")
-                prmsd = jit(vmap(get_pairwise_rmsd_traj, in_axes=(None, 0)), device = set_device)(traj_jax_array, ref_indices)
-            else:
-                print(f"running pairwise rmsd between different traj. Batch: {count}")  
-                prmsd = jit(vmap(get_pairwise_rmsd_between_traj, in_axes=(None, None, 0)), device = set_device)(traj_jax_array, traj2_jax_array, ref_indices)
-            pickle.dump({'rmsd': prmsd}, f)
+            with open(output_file_prefix+str(i)+".pkl", "wb+") as f:
+
+                if traj2_jax_array is None:
+                    print(f"running pairwise rmsd between same traj. Batch: {count}")
+                    prmsd = jit(vmap(get_pairwise_rmsd_traj, in_axes=(None, 0)), device = set_device)(cut_traj, ref_indices)
+                else:
+                    print(f"running pairwise rmsd between different traj. Batch: {count}")  
+                    prmsd = jit(vmap(get_pairwise_rmsd_between_traj, in_axes=(None, None, 0)), device = set_device)(cut_traj, traj2_jax_array, ref_indices)
+                pickle.dump({'rmsd': prmsd}, f)
+        else:
+            print("(Skipping) File: " + output_file_prefix+str(i)+".pkl exists. Please set overwrite to True for triggering the calculations.")
     
         count = i
         
@@ -109,14 +114,14 @@ def load_rmsd(nref_frames, batch_ref_frame_size=100, sym=True, input_file_prefix
             prmsd_jax.append(data['rmsd'])
         
     prmsd_jax = np.concatenate(prmsd_jax)
-    
+    print(prmsd_jax.shape)
     if sym:
         n_matrix = prmsd_jax.shape[1]
         sym_prmsd_jax = np.zeros((n_matrix, n_matrix))
     
         ## construct full matrix
         upper_diag_prmsd_jax = np.triu_indices_from(sym_prmsd_jax, k=1)
-        #print(upper_diag_prmsd_jax)
+#         print(upper_diag_prmsd_jax.shape)
 
         sym_prmsd_jax[upper_diag_prmsd_jax] = prmsd_jax.T[upper_diag_prmsd_jax]
         sym_prmsd_jax.T[upper_diag_prmsd_jax] = prmsd_jax.T[upper_diag_prmsd_jax]
