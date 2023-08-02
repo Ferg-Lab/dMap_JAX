@@ -6,6 +6,51 @@ import numpy as np
 import pickle
 import jax
 import os
+#adapted from https://github.com/SSAGESLabs/PySAGES/blob/main/pysages/__init__.py
+def _set_cuda_visible_devices():
+    """
+    Determine the local MPI rank and CUDA_VISIBLE_DEVICES.
+    Assign the GPU to the local rank.
+
+    The assumptions here is that every node has the same number of GPUs available.
+    """
+    local_mpi_rank = None
+    try:  # OpenMPI
+        local_mpi_rank = int(os.environ["OMPI_COMM_WORLD_LOCAL_RANK"])
+    except KeyError:
+        pass
+    try:
+        local_mpi_rank = int(os.environ["MV2_COMM_WORLD_LOCAL_RANK"])
+    except KeyError:
+        pass
+
+    passed_visible_devices = None
+    try:
+        passed_visible_devices = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
+    except KeyError:
+        pass
+
+    if local_mpi_rank and passed_visible_devices:
+        gpu_num_id = local_mpi_rank % len(passed_visible_devices)
+        os.environ["CUDA_VISIBLE_DEVICES"] = passed_visible_devices[gpu_num_id]
+
+#adapted from https://github.com/SSAGESLabs/PySAGES/blob/main/pysages/__init__.py
+def _config_jax():
+    # Check for user set memory environment for XLA/JAX
+    if not (
+        "XLA_PYTHON_CLIENT_PREALLOCATE" in os.environ
+        or "XLA_PYTHON_CLIENT_MEM_FRACTION" in os.environ
+        or "XLA_PYTHON_CLIENT_ALLOCATOR" in os.environ
+    ):
+        # If not set be user, disable preallocate to enable multiple/growing
+        # simulation memory footprints
+        os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+
+    # Set default floating point type for arrays in `jax` to `jax.f64`
+    jax.config.update("jax_enable_x64", True)
+
+
+_set_cuda_visible_devices()
 
 def jnp_pair_rmsd(ref, target):
     
@@ -14,7 +59,6 @@ def jnp_pair_rmsd(ref, target):
     '''
     
     # translation - remove mean
-    
     ref = jnp.array(ref)
     target = jnp.array(target)
     
@@ -23,7 +67,7 @@ def jnp_pair_rmsd(ref, target):
     
     # covariance
     h = ref.T @ target
-    
+   
     # computation of optimal rotation matrix 
     u, s, vh = jnp.linalg.svd(h, full_matrices=False)
     
@@ -57,7 +101,7 @@ def get_pairwise_rmsd_between_traj(traj1, traj2, ref_index):
     
     '''RMSD between a trajectory with a given frame.
     '''
-    
+
     # TO do: calculate only upper diagonal i, j pair
     prmsd = jit(vmap(jnp_pair_rmsd, in_axes=(0, None)))(traj1, traj2[ref_index])
     
@@ -69,7 +113,9 @@ def run_rmsd(traj_jax_array, nref_frames, batch_ref_frame_size=100, output_file_
     '''Run RMSD between a trajectory in array format containing n frames with several (defined by batch_ref_frame_size)
     reference frames and save it to a file using pickle
     '''
+    print("here")
     last_frame = (nref_frames // batch_ref_frame_size) * batch_ref_frame_size
+    print(last_frame)
     cut_traj = traj_jax_array[:last_frame]
     if device:
         set_device =  device
@@ -79,9 +125,9 @@ def run_rmsd(traj_jax_array, nref_frames, batch_ref_frame_size=100, output_file_
     count = 0
     
     for i in range(batch_ref_frame_size, nref_frames, batch_ref_frame_size):
-    
         ref_indices = jnp.arange(count, i)
-        
+        _config_jax()
+
         if overwrite or not os.path.isfile(output_file_prefix+str(i)+".pkl"):
         # TO do: calculate only upper diagonal i, j pair
             with open(output_file_prefix+str(i)+".pkl", "wb+") as f:
