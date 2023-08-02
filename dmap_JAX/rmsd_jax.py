@@ -113,7 +113,6 @@ def run_rmsd(traj_jax_array, nref_frames, batch_ref_frame_size=100, output_file_
     '''Run RMSD between a trajectory in array format containing n frames with several (defined by batch_ref_frame_size)
     reference frames and save it to a file using pickle
     '''
-    print("here")
     last_frame = (nref_frames // batch_ref_frame_size) * batch_ref_frame_size
     print(last_frame)
     cut_traj = traj_jax_array[:last_frame]
