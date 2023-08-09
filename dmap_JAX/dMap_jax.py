@@ -1,13 +1,13 @@
 #pip install --upgrade "jax[cpu]"
 #pip install --upgrade "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-
+import pickle
 import jax
 from jax import numpy as jnp, jit, vmap
 from jax.numpy.linalg import eigh as jeigh
 from jax.scipy.linalg import eigh as jseigh
 from scipy.linalg import eigh as eigh
 import numpy as np
-
+import time 
 def check_is_symmetric(matrix, tol=1e-8):
     """
     matrix : NxN RMSD matrix
@@ -92,27 +92,86 @@ def nystrom_jax(eps, Pnew, lamb, psi, alpha=None, jit_compile=True, device=None)
     
     D = _jit(vmap(jnp.sum, in_axes=(0)), device=device)(Pnew)  ### row sums D
     
-    inv_sqrtD = D**(-0.5) # inverse square root, other way to calculate #_jit(jnp.sqrt)(D), inv_sqrtD = 1/sqrtD
-        
-    diag_inv_sqrtD = _jit(jnp.diag, device=device)(inv_sqrtD)
 
-    Mnew = _jit(jnp.matmul, device=device)(_jit(jnp.matmul, device=device)(diag_inv_sqrtD, Pnew), diag_inv_sqrtD)
-    
-    print(jnp.amax(Mnew, axis=1))
-        
+    K = _jit(jnp.divide, device=device)(Pnew, D)
+            
     #diag_inv_sqrtD = _jit(jnp.diag, device = set_device)(inv_sqrtD)
     
     print('Commencing Nystrom extension...')
        
-    psi_new = _jit(jnp.matmul, device=device)(Mnew, psi)
+    Kt = _jit(jnp.transpose, device=device)(K)
     
-    psi_new = jnp.divide(psi_new, lamb)
+    psi_new = _jit(vmap(jnp.matmul, in_axes=(1, None)), device=device)(Kt, psi)
+    
+    psi_new = _jit(jnp.divide, device=device)(psi_new, lamb)
     
     print('Completed.')
     
     return jnp.array(psi_new)
 
- 
+def batch_nystrom_jax(eps, lamb, psi, nref_frames, batch_ref_frame_size=100, input_file_prefix="", num_eigv_preserved=10, alpha=None, jit_compile=True, device=None):
+    """
+    Nystrom Extension specifically for the case that there is not enough RAM to store a matrix with all RMSD values
+    num_eigv_preserved: the number of eigenvectors you want to preserve to avoid resource exhaustion while preserving most important components
+    batch_ref_frame_size and nref_frames work the same way as load_rmsd and run_rmsd
+    """
+    psi_new = np.zeros((nref_frames, num_eigv_preserved))
+    if device:
+        set_device =  device
+    else:
+        set_device =  jax.devices()[0]
+    if jit_compile:
+        _jit = jit
+    else:
+        _jit = identity
+    final_frame = (nref_frames // batch_ref_frame_size + 1) * (batch_ref_frame_size)
+    print(final_frame)
+    for i in range(batch_ref_frame_size, final_frame, batch_ref_frame_size):
+        with open(input_file_prefix+str(i)+".pkl", "rb") as f:
+            data = pickle.load(f)
+            Pnew = data['rmsd']
+            if Pnew.shape[1] - psi.shape[1] < batch_ref_frame_size and Pnew.shape[1] > psi.shape[0]:
+                Pnew = Pnew[:, :psi.shape[1]]
+            if alpha != None:
+                Pnew = _jit(jnp.exp, device=device)((-Pnew**(2*alpha))/(2*eps)) ## A matrix
+            else:
+                Pnew = _jit(jnp.exp, device=device)((-Pnew**2)/(2*eps)) ## A matrix
+            D = _jit(vmap(jnp.sum, in_axes=(0)), device=device)(Pnew)  ### row sums D
+    
+
+            K = _jit(vmap(jnp.divide, in_axes=(0)), device=device)(Pnew, D)
+                                
+            
+            Kt = _jit(jnp.transpose, device=device)(K)
+    
+            mini_psi_new = _jit(vmap(jnp.matmul, in_axes=(1, None)), device=device)(Kt, psi)
+                                       
+            mini_psi_new = jnp.divide(mini_psi_new, lamb)
+
+            psi_new[i - batch_ref_frame_size : i] = mini_psi_new[:, :num_eigv_preserved]
+
+    print('Completed.')
+    return psi_new    
+    
+# def jax_pivot_extract(n_points, dist, r_cut, alpha, pivot_file, device=None, jit_compile=True):
+#     if device:
+#         set_device =  device
+#     else:
+#         set_device =  jax.devices()[0]
+    
+#     if jit_compile:
+#         _jit = jit
+#     else:
+#         _jit = identity
+
+#     print("Starting pivot...")
+
+#     N = n_points
+#     print(f"Finding the pivot for {N} data points")
+#     Pivot = np.zeros(N)
+
+# def adjust_pivot(Pivot, dist, pos, r_cut, alpha):
+    
 ## Codes from Max - pivot-dMaps ("http://dx.doi.org/10.1021/acs.macromol.7b01684")
 def pivot_extract(n_points, dist, r_cut, alpha, pivot_file):
     
@@ -149,52 +208,48 @@ def pivot_extract(n_points, dist, r_cut, alpha, pivot_file):
 
 
 ## Codes from Max - Out of sample projection using Nystrom extension
-def nystrom(delayVecs,save_bin,lamb,psi,eps,delayVecs_ss):
+def nystrom(delayVecs,lamb,psi,eps):
     
     start = time.time()
-    
-    #create saving bins for nystrom extension every save_bin frames
-    panels_indx = np.arange(0,len(delayVecs),save_bin)
-    #append the last frame if not already in lise
-    panels_indx = list(panels_indx)
-    if len(delayVecs)!=panels_indx[-1]:
-        panels_indx.append(len(delayVecs))
-    print(panels_indx)
+    # #create saving bins for nystrom extension every save_bin frames
+    # panels_indx = np.arange(0,len(delayVecs),save_bin)
+    # #append the last frame if not already in lise
+    # panels_indx = list(panels_indx)
+    # if len(delayVecs)!=panels_indx[-1]:
+    #     panels_indx.append(len(delayVecs))
+    # print(panels_indx)
     
     #check to see if any have already been run
-    k = 0
-    for q in range(len(panels_indx)):
-        if os.path.isfile('data_%d.npz' %(q)):
-            k=q
-        else:
-            break
+    # for q in range(len(panels_indx)):
+    #     if os.path.isfile('data_%d.npz' %(q)):
+    #         k=q
+    #     else:
+    #         break
     
     #only run nystrom on problems that we havenet run on before
-    for j in range(k,len(panels_indx)-1): # subsegments 
     #for j in range(3*traj.n_frames//10-1,traj.n_frames,traj.n_frames//10):
-    
-        print('Commencing Nystrom extension %d...' %(j))
-        z = []
-        #for i in range(j,j+traj.n_frames//10):
-     #   for i in range(panels_indx[j],panels_indx[j+1]):
-         
-        for i in range(delayVecs.shape[0]): # number of total points (but can be only new points)
-            Euc_i = np.minimum( euclidean_distances(delayVecs_ss,delayVecs[i].reshape(1,-1)), euclidean_distances(delayVecs_ss_flip,delayVecs[i].reshape(1,-1)) ) # for symmetries (minimum distances)
 
-            Euc_i = np.exp(-Euc_i**2/(2*eps))
+    z = []
+    #for i in range(j,j+traj.n_frames//10):
+ #   for i in range(panels_indx[j],panels_indx[j+1]):
+     
+    for i in range(delayVecs.shape[0]): # number of total points (but can be only new points)
+        Euc_i = delayVecs[i] # for symmetries (minimum distances)
 
-            Euc_i /= np.sum(Euc_i)
+        Euc_i = np.exp(-Euc_i**2/(2*eps))
 
-            psi_Nystrom = np.divide( np.matmul(Euc_i.T,psi), lamb)
+        Euc_i /= np.sum(Euc_i)
 
-            z.append(psi_Nystrom)
+        psi_Nystrom = np.divide( np.matmul(Euc_i.T,psi), lamb)
 
-            
-            #report every 10000 frames
-            if np.mod(i+1,10000) == 0:
-                print('\tNystromed %d of %d frames...' % (i+1,len(delayVecs)))
-        #save every d frames
-        #np.savez('data_%d.npz' %(j), z=z, j=j)
+        z.append(psi_Nystrom)
+
+        
+        #report every 10000 frames
+        if np.mod(i+1,10000) == 0:
+            print('\tNystromed %d of %d frames...' % (i+1,len(delayVecs)))
+    #save every d frames
+    #np.savez('data_%d.npz' %(j), z=z, j=j)
 
     print('DONE!')
     print('')
@@ -202,6 +257,7 @@ def nystrom(delayVecs,save_bin,lamb,psi,eps,delayVecs_ss):
     end = time.time()
     print("Elapsed time %.2f (s)" % (end - start))
     return z
+
 
 
 def pivot_dnystrom(dist,n,index_pivot):
