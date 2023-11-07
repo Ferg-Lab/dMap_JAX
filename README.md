@@ -9,7 +9,8 @@ This Python code supports the calculation of dMaps (standard and adaptive) using
 -----
 Comparison of the performance of RMSD matrix calculations obtained with dMap_JAX and MDAnalysis.
 
-<img width="713" alt="Screenshot 2023-07-26 at 7 37 29 PM" src="https://github.com/sivadasetty/dMap_JAX/assets/38693318/7d1e79c9-9bac-4fe2-886e-ca557e9fb470">
+<img width="302" alt="ew" src="https://github.com/Ferg-Lab/dMap_JAX/assets/38693318/b4e5767b-1bc2-432a-a701-a210d88d9647">
+
 
 -----
 
